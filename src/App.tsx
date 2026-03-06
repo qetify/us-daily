@@ -1,35 +1,24 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+import { useState } from "react"
 
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
+    <div className="min-h-screen bg-gradient-to-b from-rose-950 to-pink-900 flex flex-col items-center justify-center px-6 text-center">
+      <div className="mb-8">
+        <h1 className="text-6xl mb-3">💕</h1>
+        <h1 className="text-4xl font-bold text-white tracking-tight">Us, Daily</h1>
+        <p className="text-pink-300 mt-3 text-lg">One question. Every day. Just you two.</p>
       </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
+
+      <div className="w-full max-w-xs flex flex-col gap-3">
+        <button className="w-full bg-white text-rose-900 font-bold py-4 rounded-2xl text-lg">
+          Get Started
         </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
+        <button className="w-full bg-transparent border-2 border-pink-400 text-pink-300 font-bold py-4 rounded-2xl text-lg">
+          Log In
+        </button>
       </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
+
+      <p className="text-pink-500 text-sm mt-10">Free for 7 days · then $3.99/month</p>
+    </div>
   )
 }
-
-export default App
