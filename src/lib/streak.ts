@@ -1,7 +1,6 @@
 import { supabase } from "./supabase"
 
 export async function checkAndUpdateStreak(userId: string) {
-  // Get partnership
   const { data: p1 } = await supabase.from("partners").select("*").eq("user1_id", userId)
   const { data: p2 } = await supabase.from("partners").select("*").eq("user2_id", userId)
   const partnership = p1?.[0] || p2?.[0]
@@ -12,7 +11,6 @@ export async function checkAndUpdateStreak(userId: string) {
 
   const today = new Date().toISOString().split("T")[0]
 
-  // Check if both answered today
   const { data: myAnswer } = await supabase
     .from("answers").select("id").eq("user_id", userId).eq("answered_date", today).single()
   const { data: partnerAnswer } = await supabase
@@ -20,7 +18,6 @@ export async function checkAndUpdateStreak(userId: string) {
 
   if (!myAnswer || !partnerAnswer) return null
 
-  // Both answered — update streak
   const { data: existingStreak } = await supabase
     .from("streaks").select("*").eq("partnership_id", partnership.id).single()
 
@@ -30,16 +27,19 @@ export async function checkAndUpdateStreak(userId: string) {
 
   let newStreak = 1
   let longest = 1
+  let coinsToAward = 10 // base coins for both answering
 
   if (existingStreak) {
     if (existingStreak.last_streak_date === today) {
-      // Already updated today
       return existingStreak
     } else if (existingStreak.last_streak_date === yesterdayStr) {
-      // Continued streak
       newStreak = existingStreak.current_streak + 1
     }
     longest = Math.max(existingStreak.longest_streak || 0, newStreak)
+
+    // Bonus coins for milestones
+    if (newStreak === 7) coinsToAward += 50
+    if (newStreak === 30) coinsToAward += 200
 
     await supabase.from("streaks").update({
       current_streak: newStreak,
@@ -56,7 +56,14 @@ export async function checkAndUpdateStreak(userId: string) {
     })
   }
 
-  return { current_streak: newStreak, longest_streak: longest }
+  // Award coins to both users
+  const { data: myProfile } = await supabase.from("profiles").select("coins").eq("id", userId).single()
+  const { data: partnerProfile } = await supabase.from("profiles").select("coins").eq("id", partnerId).single()
+
+  await supabase.from("profiles").update({ coins: (myProfile?.coins || 0) + coinsToAward }).eq("id", userId)
+  await supabase.from("profiles").update({ coins: (partnerProfile?.coins || 0) + coinsToAward }).eq("id", partnerId)
+
+  return { current_streak: newStreak, longest_streak: longest, coinsAwarded: coinsToAward }
 }
 
 export async function getStreak(userId: string) {
