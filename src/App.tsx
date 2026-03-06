@@ -2,20 +2,30 @@ import { useState, useEffect } from "react"
 import { supabase } from "./lib/supabase"
 import Signup from "./pages/Signup"
 import Login from "./pages/Login"
+import Setup from "./pages/Setup"
 
-type Screen = "home" | "signup" | "login" | "dashboard"
+type Screen = "loading" | "home" | "signup" | "login" | "setup" | "dashboard"
 
 export default function App() {
-  const [screen, setScreen] = useState<Screen>("home")
+  const [screen, setScreen] = useState<Screen>("loading")
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) setScreen("dashboard")
+      if (data.session) {
+        setScreen("setup")
+      } else {
+        setScreen("home")
+      }
     })
   }, [])
 
-  if (screen === "signup") return <Signup onSwitch={() => setScreen("login")} onSuccess={() => setScreen("dashboard")} />
-  if (screen === "login") return <Login onSwitch={() => setScreen("signup")} onSuccess={() => setScreen("dashboard")} />
+  if (screen === "loading") return (
+    <div className="min-h-screen bg-gradient-to-b from-rose-950 to-pink-900" />
+  )
+
+  if (screen === "signup") return <Signup onSwitch={() => setScreen("login")} onSuccess={() => setScreen("setup")} />
+  if (screen === "login") return <Login onSwitch={() => setScreen("signup")} onSuccess={() => setScreen("setup")} />
+  if (screen === "setup") return <Setup onDone={() => setScreen("dashboard")} />
   if (screen === "dashboard") return (
     <div className="min-h-screen bg-gradient-to-b from-rose-950 to-pink-900 flex flex-col items-center justify-center px-6 text-center">
       <h1 className="text-4xl font-bold text-white mb-4">You're in! 💕</h1>
