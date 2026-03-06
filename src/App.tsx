@@ -1,14 +1,33 @@
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { supabase } from "./lib/supabase"
 import Signup from "./pages/Signup"
 import Login from "./pages/Login"
 
-type Screen = "home" | "signup" | "login"
+type Screen = "home" | "signup" | "login" | "dashboard"
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>("home")
 
-  if (screen === "signup") return <Signup onSwitch={() => setScreen("login")} />
-  if (screen === "login") return <Login onSwitch={() => setScreen("signup")} />
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setScreen("dashboard")
+    })
+  }, [])
+
+  if (screen === "signup") return <Signup onSwitch={() => setScreen("login")} onSuccess={() => setScreen("dashboard")} />
+  if (screen === "login") return <Login onSwitch={() => setScreen("signup")} onSuccess={() => setScreen("dashboard")} />
+  if (screen === "dashboard") return (
+    <div className="min-h-screen bg-gradient-to-b from-rose-950 to-pink-900 flex flex-col items-center justify-center px-6 text-center">
+      <h1 className="text-4xl font-bold text-white mb-4">You're in! 💕</h1>
+      <p className="text-pink-300">Dashboard coming soon...</p>
+      <button
+        onClick={async () => { await supabase.auth.signOut(); setScreen("home") }}
+        className="mt-8 text-pink-400 text-sm underline"
+      >
+        Sign out
+      </button>
+    </div>
+  )
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-950 to-pink-900 flex flex-col items-center justify-center px-6 text-center">

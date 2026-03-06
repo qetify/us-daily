@@ -1,6 +1,7 @@
 import { useState } from "react"
+import { supabase } from "../lib/supabase"
 
-export default function Signup({ onSwitch }: { onSwitch: () => void }) {
+export default function Signup({ onSwitch, onSuccess }: { onSwitch: () => void, onSuccess: () => void }) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [loading, setLoading] = useState(false)
@@ -11,8 +12,13 @@ export default function Signup({ onSwitch }: { onSwitch: () => void }) {
     if (password.length < 6) return setError("Password must be 6+ characters")
     setLoading(true)
     setError("")
-    // Supabase auth will go here
-    setTimeout(() => setLoading(false), 1000)
+    const { error } = await supabase.auth.signUp({ email, password })
+    if (error) {
+      setError(error.message)
+      setLoading(false)
+    } else {
+      onSuccess()
+    }
   }
 
   return (
@@ -20,7 +26,6 @@ export default function Signup({ onSwitch }: { onSwitch: () => void }) {
       <div className="w-full max-w-xs">
         <h1 className="text-3xl font-bold text-white mb-2 text-center">Create account</h1>
         <p className="text-pink-300 text-center mb-8">Start your 7-day free trial</p>
-
         <div className="flex flex-col gap-3">
           <input
             type="email"
@@ -45,7 +50,6 @@ export default function Signup({ onSwitch }: { onSwitch: () => void }) {
             {loading ? "Creating account..." : "Create Account"}
           </button>
         </div>
-
         <p className="text-pink-400 text-center mt-6 text-sm">
           Already have an account?{" "}
           <span onClick={onSwitch} className="text-white font-bold cursor-pointer">Log in</span>
