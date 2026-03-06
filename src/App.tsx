@@ -11,11 +11,15 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>("loading")
 
   useEffect(() => {
+    // Store invite code before auth redirects clear it
+    const invite = new URLSearchParams(window.location.search).get("invite")
+    if (invite) localStorage.setItem("pendingInvite", invite)
+
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
         setScreen("dashboard")
       } else {
-        setScreen("home")
+        setScreen(invite ? "signup" : "home")
       }
     })
   }, [])
@@ -25,7 +29,7 @@ export default function App() {
   )
 
   if (screen === "signup") return <Signup onSwitch={() => setScreen("login")} onSuccess={() => setScreen("setup")} />
-  if (screen === "login") return <Login onSwitch={() => setScreen("signup")} onSuccess={() => setScreen("dashboard")} />
+  if (screen === "login") return <Login onSwitch={() => setScreen("signup")} onSuccess={() => setScreen("setup")} />
   if (screen === "setup") return <Setup onDone={() => setScreen("dashboard")} />
   if (screen === "dashboard") return <Dashboard onSignOut={async () => { await supabase.auth.signOut(); setScreen("home") }} />
 

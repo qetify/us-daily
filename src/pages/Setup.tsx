@@ -12,16 +12,16 @@ export default function Setup({ onDone }: { onDone: () => void }) {
   const [copied, setCopied] = useState(false)
   const [step, setStep] = useState<"name" | "invite">("name")
 
+  const inviteParam = new URLSearchParams(window.location.search).get("invite") || localStorage.getItem("pendingInvite")
+
   async function handleName() {
     if (!name.trim()) return
     setLoading(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    // Save name to profiles
     await supabase.from("profiles").upsert({ id: user.id, name: name.trim() })
 
-    // Check if already has a partner entry
     const { data: existing } = await supabase
       .from("partners")
       .select("*")
@@ -33,12 +33,7 @@ export default function Setup({ onDone }: { onDone: () => void }) {
       return
     }
 
-    // Check if joining via invite
-    const params = new URLSearchParams(window.location.search)
-    const inviteParam = params.get("invite")
-
     if (inviteParam) {
-      // Join existing partnership
       const { error } = await supabase
         .from("partners")
         .update({ user2_id: user.id })
@@ -46,12 +41,13 @@ export default function Setup({ onDone }: { onDone: () => void }) {
         .is("user2_id", null)
 
       if (!error) {
+        localStorage.removeItem("pendingInvite")
+        window.history.replaceState({}, "", "/")
         onDone()
         return
       }
     }
 
-    // Create new partnership
     const code = generateCode()
     await supabase.from("partners").insert({ user1_id: user.id, invite_code: code })
     setInviteCode(code)
@@ -88,8 +84,12 @@ export default function Setup({ onDone }: { onDone: () => void }) {
     <div className="min-h-screen bg-gradient-to-b from-rose-950 to-pink-900 flex flex-col items-center justify-center px-6 text-center">
       <div className="w-full max-w-xs">
         <h1 className="text-4xl mb-3">👋</h1>
-        <h1 className="text-3xl font-bold text-white mb-2">What's your name?</h1>
-        <p className="text-pink-300 mb-8">Just your first name is fine</p>
+        <h1 className="text-3xl font-bold text-white mb-2">
+          {inviteParam ? "You've been invited! 💕" : "What's your name?"}
+        </h1>
+        <p className="text-pink-300 mb-8">
+          {inviteParam ? "Enter your name to connect with your partner" : "Just your first name is fine"}
+        </p>
         <div className="flex flex-col gap-3">
           <input
             type="text"
@@ -103,7 +103,7 @@ export default function Setup({ onDone }: { onDone: () => void }) {
             disabled={loading || !name.trim()}
             className="w-full bg-white text-rose-900 font-bold py-4 rounded-2xl text-lg mt-2"
           >
-            {loading ? "Setting up..." : "Continue →"}
+            {loading ? "Connecting..." : inviteParam ? "Connect with Partner 💕" : "Continue →"}
           </button>
         </div>
       </div>

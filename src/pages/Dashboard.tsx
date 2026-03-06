@@ -1,12 +1,24 @@
 import { useState, useEffect } from "react"
 import { supabase } from "../lib/supabase"
 import { questions } from "../data/questions"
+import { checkAndUpdateStreak, getStreak } from "../lib/streak"
 
 function getTodayIndex() {
   const start = new Date("2026-01-01").getTime()
   const now = new Date().getTime()
   const days = Math.floor((now - start) / (1000 * 60 * 60 * 24))
   return days % questions.length
+}
+
+function getMatchPercent(a: string, b: string) {
+  const normalize = (s: string) => s.toLowerCase().trim().replace(/[^a-z0-9 ]/g, "")
+  const wordsA = new Set(normalize(a).split(" ").filter(Boolean))
+  const wordsB = new Set(normalize(b).split(" ").filter(Boolean))
+  if (wordsA.size === 0 && wordsB.size === 0) return 100
+  const intersection = [...wordsA].filter(w => wordsB.has(w))
+  const union = new Set([...wordsA, ...wordsB])
+  const similarity = intersection.length / union.size
+  return Math.round(40 + similarity * 60)
 }
 
 export default function Dashboard({ onSignOut }: { onSignOut: () => void }) {
@@ -20,6 +32,8 @@ export default function Dashboard({ onSignOut }: { onSignOut: () => void }) {
   const [revealed, setRevealed] = useState(false)
   const [inviteCode, setInviteCode] = useState("")
   const [copied, setCopied] = useState(false)
+  const [streak, setStreak] = useState<number>(0)
+  const [matchPercent, setMatchPercent] = useState<number | null>(null)
 
   const todayIndex = getTodayIndex()
   const question = questions[todayIndex]
@@ -34,20 +48,20 @@ export default function Dashboard({ onSignOut }: { onSignOut: () => void }) {
       .from("profiles").select("name").eq("id", user.id).single()
     if (profile?.name) setName(profile.name)
 
+    const today = new Date().toISOString().split("T")[0]
+
     const { data: myAns } = await supabase
       .from("answers").select("answer")
-      .eq("user_id", user.id).eq("question_index", todayIndex).single()
+      .eq("user_id", user.id).eq("answered_date", today).single()
     if (myAns) setMyAnswer(myAns.answer)
 
-    const { data: partnership } = await supabase
-      .from("partners").select("*")
-      .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`).single()
+    const { data: p1 } = await supabase.from("partners").select("*").eq("user1_id", user.id)
+    const { data: p2 } = await supabase.from("partners").select("*").eq("user2_id", user.id)
+    const partnership = p1?.[0] || p2?.[0]
 
     if (partnership) {
       setInviteCode(partnership.invite_code)
-      const partnerId = partnership.user1_id === user.id
-        ? partnership.user2_id
-        : partnership.user1_id
+      const partnerId = partnership.user1_id === user.id ? partnership.user2_id : partnership.user1_id
 
       if (partnerId) {
         const { data: pp } = await supabase
@@ -57,11 +71,19 @@ export default function Dashboard({ onSignOut }: { onSignOut: () => void }) {
         if (myAns) {
           const { data: pa } = await supabase
             .from("answers").select("answer")
-            .eq("user_id", partnerId).eq("question_index", todayIndex).single()
-          if (pa) setPartnerAnswer(pa.answer)
+            .eq("user_id", partnerId).eq("answered_date", today).single()
+          if (pa) {
+            setPartnerAnswer(pa.answer)
+            const streakData = await checkAndUpdateStreak(user.id)
+            if (streakData) setStreak(streakData.current_streak)
+            setMatchPercent(getMatchPercent(myAns.answer, pa.answer))
+          }
         }
       }
     }
+
+    const streakData = await getStreak(user.id)
+    if (streakData) setStreak(streakData.current_streak)
 
     setLoading(false)
   }
@@ -71,9 +93,11 @@ export default function Dashboard({ onSignOut }: { onSignOut: () => void }) {
     setSubmitting(true)
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
+    const today = new Date().toISOString().split("T")[0]
     await supabase.from("answers").upsert({
       user_id: user.id,
       question_index: todayIndex,
+      answered_date: today,
       answer: input.trim()
     })
     setMyAnswer(input.trim())
@@ -96,7 +120,7 @@ export default function Dashboard({ onSignOut }: { onSignOut: () => void }) {
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-950 to-pink-900 flex flex-col px-6 py-12">
       {/* Header */}
-      <div className="flex justify-between items-start mb-10">
+      <div className="flex justify-between items-start mb-8">
         <div>
           <p className="text-white font-semibold">Hey, {name || "you"} 👋</p>
           {partnerName
@@ -108,7 +132,15 @@ export default function Dashboard({ onSignOut }: { onSignOut: () => void }) {
               : <p className="text-pink-500 text-xs mt-1">setting up...</p>
           }
         </div>
-        <button onClick={onSignOut} className="text-pink-600 text-xs underline">Sign out</button>
+        <div className="flex flex-col items-end gap-1">
+          {streak > 0 && (
+            <div className="flex items-center gap-1 bg-orange-500/20 border border-orange-400/30 rounded-full px-3 py-1">
+              <span className="text-sm">🔥</span>
+              <span className="text-orange-300 text-sm font-bold">{streak}</span>
+            </div>
+          )}
+          <button onClick={onSignOut} className="text-pink-600 text-xs underline">Sign out</button>
+        </div>
       </div>
 
       {/* Question */}
@@ -143,19 +175,35 @@ export default function Dashboard({ onSignOut }: { onSignOut: () => void }) {
             </div>
 
             {partnerAnswer ? (
-              !revealed ? (
-                <button
-                  onClick={() => setRevealed(true)}
-                  className="w-full bg-white text-rose-900 font-bold py-4 rounded-2xl text-lg"
-                >
-                  Reveal {partnerName}'s Answer 👀
-                </button>
-              ) : (
-                <div className="bg-pink-500/20 border border-pink-400/30 rounded-2xl px-4 py-4">
-                  <p className="text-pink-400 text-xs mb-1">{partnerName}'s answer</p>
-                  <p className="text-white">{partnerAnswer}</p>
-                </div>
-              )
+              <div className="flex flex-col gap-3">
+                {!revealed ? (
+                  <button
+                    onClick={() => setRevealed(true)}
+                    className="w-full bg-white text-rose-900 font-bold py-4 rounded-2xl text-lg"
+                  >
+                    Reveal {partnerName}'s Answer 👀
+                  </button>
+                ) : (
+                  <div className="flex flex-col gap-3">
+                    <div className="bg-pink-500/20 border border-pink-400/30 rounded-2xl px-4 py-4">
+                      <p className="text-pink-400 text-xs mb-1">{partnerName}'s answer</p>
+                      <p className="text-white">{partnerAnswer}</p>
+                    </div>
+                    {matchPercent !== null && (
+                      <div className="bg-white/10 border border-pink-400/20 rounded-2xl px-4 py-5 text-center">
+                        <p className="text-pink-400 text-xs mb-1 uppercase tracking-widest">Today's Match</p>
+                        <p className="text-5xl font-bold text-white mb-1">{matchPercent}%</p>
+                        <p className="text-pink-300 text-sm">
+                          {matchPercent >= 80 ? "You two think alike 🔥" :
+                           matchPercent >= 60 ? "Pretty well matched 💕" :
+                           matchPercent >= 40 ? "Interesting differences 👀" :
+                           "Opposites attract 😄"}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
             ) : (
               <p className="text-pink-400 text-sm text-center">
                 {partnerName
