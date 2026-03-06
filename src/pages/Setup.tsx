@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { supabase } from "../lib/supabase"
 
 function generateCode() {
@@ -18,16 +18,44 @@ export default function Setup({ onDone }: { onDone: () => void }) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
-    const code = generateCode()
-    const { error } = await supabase.from("partners").insert({
-      user1_id: user.id,
-      invite_code: code,
-    })
+    // Save name to profiles
+    await supabase.from("profiles").upsert({ id: user.id, name: name.trim() })
 
-    if (!error) {
-      setInviteCode(code)
-      setStep("invite")
+    // Check if already has a partner entry
+    const { data: existing } = await supabase
+      .from("partners")
+      .select("*")
+      .or(`user1_id.eq.${user.id},user2_id.eq.${user.id}`)
+      .single()
+
+    if (existing) {
+      onDone()
+      return
     }
+
+    // Check if joining via invite
+    const params = new URLSearchParams(window.location.search)
+    const inviteParam = params.get("invite")
+
+    if (inviteParam) {
+      // Join existing partnership
+      const { error } = await supabase
+        .from("partners")
+        .update({ user2_id: user.id })
+        .eq("invite_code", inviteParam)
+        .is("user2_id", null)
+
+      if (!error) {
+        onDone()
+        return
+      }
+    }
+
+    // Create new partnership
+    const code = generateCode()
+    await supabase.from("partners").insert({ user1_id: user.id, invite_code: code })
+    setInviteCode(code)
+    setStep("invite")
     setLoading(false)
   }
 
@@ -43,22 +71,13 @@ export default function Setup({ onDone }: { onDone: () => void }) {
         <h1 className="text-4xl mb-3">💌</h1>
         <h1 className="text-3xl font-bold text-white mb-2">Invite your partner</h1>
         <p className="text-pink-300 mb-8">Send them this link — once they join you'll be connected</p>
-
         <div className="bg-white/10 border border-pink-400/30 rounded-2xl px-4 py-4 mb-4">
           <p className="text-pink-200 text-sm break-all">{window.location.origin}?invite={inviteCode}</p>
         </div>
-
-        <button
-          onClick={copyLink}
-          className="w-full bg-white text-rose-900 font-bold py-4 rounded-2xl text-lg mb-3"
-        >
+        <button onClick={copyLink} className="w-full bg-white text-rose-900 font-bold py-4 rounded-2xl text-lg mb-3">
           {copied ? "Copied! ✓" : "Copy Invite Link"}
         </button>
-
-        <button
-          onClick={onDone}
-          className="w-full text-pink-400 text-sm underline"
-        >
+        <button onClick={onDone} className="w-full text-pink-400 text-sm underline">
           Skip for now
         </button>
       </div>
@@ -71,7 +90,6 @@ export default function Setup({ onDone }: { onDone: () => void }) {
         <h1 className="text-4xl mb-3">👋</h1>
         <h1 className="text-3xl font-bold text-white mb-2">What's your name?</h1>
         <p className="text-pink-300 mb-8">Just your first name is fine</p>
-
         <div className="flex flex-col gap-3">
           <input
             type="text"

@@ -3,6 +3,7 @@ import { supabase } from "./lib/supabase"
 import Signup from "./pages/Signup"
 import Login from "./pages/Login"
 import Setup from "./pages/Setup"
+import Dashboard from "./pages/Dashboard"
 
 type Screen = "loading" | "home" | "signup" | "login" | "setup" | "dashboard"
 
@@ -12,7 +13,7 @@ export default function App() {
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       if (data.session) {
-        setScreen("setup")
+        setScreen("dashboard")
       } else {
         setScreen("home")
       }
@@ -24,20 +25,9 @@ export default function App() {
   )
 
   if (screen === "signup") return <Signup onSwitch={() => setScreen("login")} onSuccess={() => setScreen("setup")} />
-  if (screen === "login") return <Login onSwitch={() => setScreen("signup")} onSuccess={() => setScreen("setup")} />
+  if (screen === "login") return <Login onSwitch={() => setScreen("signup")} onSuccess={() => setScreen("dashboard")} />
   if (screen === "setup") return <Setup onDone={() => setScreen("dashboard")} />
-  if (screen === "dashboard") return (
-    <div className="min-h-screen bg-gradient-to-b from-rose-950 to-pink-900 flex flex-col items-center justify-center px-6 text-center">
-      <h1 className="text-4xl font-bold text-white mb-4">You're in! 💕</h1>
-      <p className="text-pink-300">Dashboard coming soon...</p>
-      <button
-        onClick={async () => { await supabase.auth.signOut(); setScreen("home") }}
-        className="mt-8 text-pink-400 text-sm underline"
-      >
-        Sign out
-      </button>
-    </div>
-  )
+  if (screen === "dashboard") return <Dashboard onSignOut={async () => { await supabase.auth.signOut(); setScreen("home") }} />
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-rose-950 to-pink-900 flex flex-col items-center justify-center px-6 text-center">
@@ -47,16 +37,10 @@ export default function App() {
         <p className="text-pink-300 mt-3 text-lg">One question. Every day. Just you two.</p>
       </div>
       <div className="w-full max-w-xs flex flex-col gap-3">
-        <button
-          onClick={() => setScreen("signup")}
-          className="w-full bg-white text-rose-900 font-bold py-4 rounded-2xl text-lg"
-        >
+        <button onClick={() => setScreen("signup")} className="w-full bg-white text-rose-900 font-bold py-4 rounded-2xl text-lg">
           Get Started
         </button>
-        <button
-          onClick={() => setScreen("login")}
-          className="w-full bg-transparent border-2 border-pink-400 text-pink-300 font-bold py-4 rounded-2xl text-lg"
-        >
+        <button onClick={() => setScreen("login")} className="w-full bg-transparent border-2 border-pink-400 text-pink-300 font-bold py-4 rounded-2xl text-lg">
           Log In
         </button>
       </div>
